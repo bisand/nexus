@@ -3,9 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nexus", "server\nexus.csproj", "{E6259EB9-D7E4-4E5E-9EB3-A8021509B9C3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nexus-server", "server\nexus-server.csproj", "{E6259EB9-D7E4-4E5E-9EB3-A8021509B9C3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "client", "client\client.csproj", "{ED2A092F-4525-4868-8B32-6DF63D75FC0C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nexus-client-full", "client-full\nexus-client-full.csproj", "{ED2A092F-4525-4868-8B32-6DF63D75FC0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nexus-client-lite", "client-lite\nexus-client-lite.csproj", "{7450259B-E6C7-4F09-8AFB-768E28517C1E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nexus-comm", "comm\nexus-comm.csproj", "{44B9EFC2-8715-451C-9DD6-AF3B05FC86D8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +28,13 @@ Global
 		{ED2A092F-4525-4868-8B32-6DF63D75FC0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED2A092F-4525-4868-8B32-6DF63D75FC0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED2A092F-4525-4868-8B32-6DF63D75FC0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7450259B-E6C7-4F09-8AFB-768E28517C1E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7450259B-E6C7-4F09-8AFB-768E28517C1E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7450259B-E6C7-4F09-8AFB-768E28517C1E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7450259B-E6C7-4F09-8AFB-768E28517C1E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44B9EFC2-8715-451C-9DD6-AF3B05FC86D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44B9EFC2-8715-451C-9DD6-AF3B05FC86D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44B9EFC2-8715-451C-9DD6-AF3B05FC86D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44B9EFC2-8715-451C-9DD6-AF3B05FC86D8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
