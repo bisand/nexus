@@ -1,7 +1,6 @@
 {
     "version": "0.2.0",
     "configurations": [
-        
         {
             "name": "Debug nexus-client-full",
             "type": "coreclr",
@@ -23,7 +22,6 @@
                 "/Views": "${workspaceFolder}/Views"
             }
         },
-
         {
             "name": "Debug nexus-client-lite",
             "type": "coreclr",
@@ -38,7 +36,6 @@
                 "ASPNETCORE_ENVIRONMENT": "Development"
             },
         },
-
         {
             "name": "Debug nexus-server",
             "type": "coreclr",
@@ -56,7 +53,6 @@
                 "/Views": "${workspaceFolder}/Views"
             }
         },
-
         {
             // Use IntelliSense to find out which attributes exist for C# debugging
             // Use hover for the description of the existing attributes
@@ -81,12 +77,26 @@
     ],
     "compounds": [
         {
-            "name": "Debug client and server",
+            "name": "Debug all",
             "configurations": [
                 "Debug nexus-server",
                 "Debug nexus-client-lite",
                 "Debug nexus-client-full",
             ]
+        },
+        {
+            "name": "Debug full client and server",
+            "configurations": [
+                "Debug nexus-server",
+                "Debug nexus-client-full",
+            ]
+        },
+        {
+            "name": "Debug lite client and server",
+            "configurations": [
+                "Debug nexus-server",
+                "Debug nexus-client-lite",
+            ],
         }
     ]
 }

@@ -18,7 +18,7 @@ public class WebSocketClient : IDisposable
     {
     }
 
-    public async Task Start(CancellationToken? ct = null)
+    public async Task StartAsync(CancellationToken? ct = null)
     {
         if (_client == null)
         {

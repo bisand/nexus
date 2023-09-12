@@ -1,7 +1,7 @@
 ﻿using comm;
 
 var webSocketClient = new WebSocketClient();
-await webSocketClient.Start();
+await webSocketClient.StartAsync();
 
 while (true)
 {

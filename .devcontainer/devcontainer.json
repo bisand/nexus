@@ -42,7 +42,8 @@
 				"fernandoescolar.vscode-solution-explorer",
 				"ms-vscode.vs-keybindings",
 				"donjayamanne.githistory",
-				"josefpihrt-vscode.roslynator"
+				"josefpihrt-vscode.roslynator",
+				"GitHub.copilot-labs"
 			]
 		}
 	},

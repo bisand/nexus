@@ -52,6 +52,7 @@ public static class Program
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     Console.WriteLine("Client disconnected");
+                    await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Client disconnected")), WebSocketMessageType.Text, true, CancellationToken.None);
                     break;
                 }
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
@@ -62,17 +63,20 @@ public static class Program
                     if (response == expected)
                     {
                         Console.WriteLine("Client authenticated");
+                        await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Client authenticated")), WebSocketMessageType.Text, true, CancellationToken.None);
                         clients[webSocket.WebSocket] = true;
+
+                        //TODO: Accept all authenticated clients, not just the first two and route messages between them based on id
                         if (clients.Count == 2 && clients.Values.All(authenticated => authenticated))
                         {
-                            StartForwarding(clients.Keys);
+                            await StartForwarding(clients.Keys);
                         }
                         break;
                     }
                     else
                     {
                         Console.WriteLine("Client authentication failed");
-                        await webSocket.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Authentication failed", CancellationToken.None);
+                        await webSocket.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client authentication failed", CancellationToken.None);
                         break;
                     }
                 }
