@@ -52,8 +52,10 @@ public static class Program
             Console.WriteLine("New client connected");
 
             // Send an authentication challenge to the client
+            //TODO: Replace with response object
             var challenge = Guid.NewGuid().ToString("N");
             wsClients[webSocket.WebSocket] = false;
+            string v = JsonSerializer.Serialize(new Response(401, null, challenge));
             await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"AUTH {challenge}")), WebSocketMessageType.Text, true, CancellationToken.None);
 
             // Listen for authentication responses from the client
@@ -68,7 +70,15 @@ public static class Program
                     break;
                 }
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                if (message.StartsWith("AUTH "))
+                var request = JsonSerializer.Deserialize<Request>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+                }) ?? throw new Exception("Request error");
+                if (request.Method.Equals("auth") && request.Body.Any())
                 {
                     //TODO: Fix this and use the request and response objects
                     var response = message.Substring(5);
