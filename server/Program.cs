@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
+﻿using System.Net;
 using System.Net.WebSockets;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace nexus;
 
@@ -12,17 +10,31 @@ public static class Program
 {
     static async Task Main(string[] args)
     {
+        // Load clients from json file. Deserialize using builtin .net
+        // json serializer. If file does not exist, create it.
+        if (!File.Exists("clients.json"))
+        {
+            throw new Exception("clients.json file not found");
+        }
+
+        var json = await File.ReadAllTextAsync("clients.json");
+        var clients = JsonSerializer.Deserialize<List<Client>>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            AllowTrailingCommas = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+        }) ?? throw new Exception("clients.json file is empty");
+
         // Create a WebSocket server
         var listener = new HttpListener();
-        listener.Prefixes.Add("http://localhost:8080/");
+        listener.Prefixes.Add(Environment.GetEnvironmentVariable("NEXUS_URL") ?? "http://*:8080/");
         listener.Start();
         Console.WriteLine("Listening for WebSocket connections...");
 
         // Keep track of connected clients and their authentication status
-        var clients = new Dictionary<WebSocket, bool>();
-
-        // Shared secret key for authentication
-        const string secretKey = "mysecretkey";
+        var wsClients = new Dictionary<WebSocket, bool>();
 
         while (true)
         {
@@ -41,7 +53,7 @@ public static class Program
 
             // Send an authentication challenge to the client
             var challenge = Guid.NewGuid().ToString("N");
-            clients[webSocket.WebSocket] = false;
+            wsClients[webSocket.WebSocket] = false;
             await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"AUTH {challenge}")), WebSocketMessageType.Text, true, CancellationToken.None);
 
             // Listen for authentication responses from the client
@@ -58,18 +70,19 @@ public static class Program
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 if (message.StartsWith("AUTH "))
                 {
+                    //TODO: Fix this and use the request and response objects
                     var response = message.Substring(5);
                     var expected = secretKey + challenge;
                     if (response == expected)
                     {
                         Console.WriteLine("Client authenticated");
                         await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Client authenticated")), WebSocketMessageType.Text, true, CancellationToken.None);
-                        clients[webSocket.WebSocket] = true;
+                        wsClients[webSocket.WebSocket] = true;
 
                         //TODO: Accept all authenticated clients, not just the first two and route messages between them based on id
-                        if (clients.Count == 2 && clients.Values.All(authenticated => authenticated))
+                        if (wsClients.Count == 2 && wsClients.Values.All(authenticated => authenticated))
                         {
-                            await StartForwarding(clients.Keys);
+                            await StartForwarding(wsClients.Keys);
                         }
                         break;
                     }

@@ -43,7 +43,7 @@
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/server/bin/Debug/net7.0/nexus-server.dll",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/server/",
             "stopAtEntry": false,
             "requireExactSource": false,
             "env": {

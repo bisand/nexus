@@ -1,0 +1,17 @@
+[
+    {
+        "name": "SensuServer",
+        "type": "Server",
+        "secret": "zhHd$J4dsV%rCH@Ep25ayyHbYekx5Vkv"
+    },
+    {
+        "name": "InfluxServer",
+        "type": "Client",
+        "secret": "e6n8Zw&e6XXpeK7HYxrHTsMwuX2CG6Bu"
+    },
+    {
+        "name": "CloudflareClient",
+        "type": "Client",
+        "secret": "HP1ky%UsD@LgauFQg$rPXn#Z2#m3kAkx"
+    }
+]
