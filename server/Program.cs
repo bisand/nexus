@@ -28,7 +28,7 @@ public static class Program
         }) ?? throw new Exception("clients.json file is empty");
 
         // Create a WebSocket server
-        var listener = new HttpListener();
+        using var listener = new HttpListener();
         listener.Prefixes.Add(Environment.GetEnvironmentVariable("NEXUS_URL") ?? "http://*:8080/");
         listener.Start();
         Console.WriteLine("Listening for WebSocket connections...");
@@ -55,8 +55,9 @@ public static class Program
             //TODO: Replace with response object
             var challenge = Guid.NewGuid().ToString("N");
             wsClients[webSocket.WebSocket] = false;
-            string v = JsonSerializer.Serialize(new Response(401, null, challenge));
-            await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"AUTH {challenge}")), WebSocketMessageType.Text, true, CancellationToken.None);
+            var response = new Response(401, new Dictionary<string, string> { { "challenge", challenge } }, null);
+            string responseText = JsonSerializer.Serialize(response);
+            await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(responseText)), WebSocketMessageType.Text, true, CancellationToken.None);
 
             // Listen for authentication responses from the client
             var buffer = new byte[1024];
