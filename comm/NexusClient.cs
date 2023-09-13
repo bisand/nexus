@@ -1,21 +1,31 @@
-using System;
 using System.Net.WebSockets;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace comm;
 
-public class WebSocketClient : IDisposable
+public class NexusClient : IDisposable
 {
     private bool _running;
     private bool _disposedValue;
     private CancellationTokenSource? _cts = new();
     private CancellationToken _ct;
     private ClientWebSocket? _client = new();
+    private readonly Uri _nexusUri;
+    private readonly string _clientName;
+    private readonly string _nexusSecret;
 
-    public WebSocketClient()
+    public NexusClient(string clientName, string nexusUrl, string nexusSecret)
     {
+        if (string.IsNullOrWhiteSpace(nexusUrl))
+            throw new ArgumentException("Nexus URL cannot be null or empty", nameof(nexusUrl));
+        if (string.IsNullOrWhiteSpace(clientName))
+            throw new ArgumentException("Client name cannot be null or empty", nameof(clientName));
+        if (string.IsNullOrWhiteSpace(nexusSecret))
+            throw new ArgumentException("Nexus secret cannot be null or empty", nameof(nexusSecret));
+
+        _nexusUri = new Uri(nexusUrl);
+        _clientName = clientName;
+        _nexusSecret = nexusSecret;
     }
 
     public async Task StartAsync(CancellationToken? ct = null)
@@ -32,8 +42,7 @@ public class WebSocketClient : IDisposable
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct ?? CancellationToken.None);
         _ct = _cts.Token;
-        var uri = new Uri("ws://localhost:8080");
-        await _client.ConnectAsync(uri, _ct);
+        await _client.ConnectAsync(_nexusUri, _ct);
 
         var buffer = new byte[1024];
         var connectResult = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -44,16 +53,25 @@ public class WebSocketClient : IDisposable
             return;
         }
         var conMsg = Encoding.UTF8.GetString(buffer, 0, connectResult.Count);
-        var challenge = "";
-        if (conMsg?.StartsWith("AUTH ") == true)
+        Message message = conMsg.ToMessage();
+        if (!message.MessageType.Equals(MessageType.Response))
         {
-            challenge = conMsg[5..];
+            Console.WriteLine($"Received unexpected message from server: {conMsg}");
+            _running = false;
+            return;
+        }
+        Response response = conMsg.ToResponse();
+        var challenge = "";
+        if (response.StatusCode == 401 && response.Headers.TryGetValue("WWW-Authenticate", out var authHeader))
+        {
+            challenge = authHeader;
         }
 
         // Authenticate with the server
         const string secretKey = "mysecretkey";
         var expected = secretKey + challenge;
         var authMessage = $"AUTH {expected}";
+        var request = new Request(RequestMethod.AUTH, null, _nexusUri, null, new Client(_clientName, ClientTypes.Client, _nexusSecret).ToJson());
         var authBuffer = Encoding.UTF8.GetBytes(authMessage);
         await _client.SendAsync(new ArraySegment<byte>(authBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
 
@@ -82,36 +100,39 @@ public class WebSocketClient : IDisposable
     public async Task<string> ReceiveAsync()
     {
         if (_client == null)
-        {
             throw new InvalidOperationException("WebSocket client is null.");
-        }
+
         // Wait for a response from the server
         byte[] buffer = new byte[1024];
         var result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
         if (result.MessageType == WebSocketMessageType.Close)
         {
             Console.WriteLine("Server disconnected");
-            return "";
+            return new Response(200, null, "Server disconnected").ToJson();
         }
         var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
         Console.WriteLine($"Received message from server: {response}");
         return response;
     }
 
-    public async Task SendAsync(string message)
+    public async Task SendAsync(Request message)
     {
         if (_client == null)
-        {
             throw new InvalidOperationException("WebSocket client is null.");
-        }
-        var messageBuffer = Encoding.UTF8.GetBytes(message);
-        await _client.SendAsync(new ArraySegment<byte>(messageBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
+        await _client.SendAsync(new ArraySegment<byte>(message.ToJsonBuffer()), WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
-    public async Task<string> GetAsync(string message)
+    public async Task SendAsync(Response message)
+    {
+        if (_client == null)
+            throw new InvalidOperationException("WebSocket client is null.");
+        await _client.SendAsync(new ArraySegment<byte>(message.ToJsonBuffer()), WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
+    public async Task<Response> GetAsync(Request message)
     {
         await SendAsync(message);
-        return await ReceiveAsync();
+        return (await ReceiveAsync()).ToResponse();
     }
 
     public async Task Stop()

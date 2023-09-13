@@ -1,11 +1,11 @@
 [
     {
-        "name": "SensuServer",
+        "name": "sensu",
         "type": "Server",
         "secret": "zhHd$J4dsV%rCH@Ep25ayyHbYekx5Vkv"
     },
     {
-        "name": "InfluxServer",
+        "name": "sinfluxdb",
         "type": "Client",
         "secret": "e6n8Zw&e6XXpeK7HYxrHTsMwuX2CG6Bu"
     },

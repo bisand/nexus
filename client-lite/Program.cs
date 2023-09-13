@@ -1,17 +1,23 @@
 ﻿using comm;
 
-var webSocketClient = new WebSocketClient();
+var webSocketClient = new NexusClient("", "", "");
 await webSocketClient.StartAsync();
 
 while (true)
 {
-    var message = await webSocketClient.ReceiveAsync();
-    if (message.StartsWith("GET"))
+    var result = await webSocketClient.ReceiveAsync();
+    Message message = result.ToMessage();
+    if (message.MessageType.Equals(MessageType.Request))
     {
-        var url = message[3..].Trim();
+        var requestMessage = result.ToRequest();
+        var uri = requestMessage.Uri;
         var client = new HttpClient();
-        var response = await client.GetStringAsync(url);
-        await webSocketClient.SendAsync(response);
+        var webResponse = await client.GetStringAsync(uri);
+        await webSocketClient.SendAsync(webResponse.ToResponse());
+    }
+    else if (message.MessageType.Equals(MessageType.Response))
+    {
+        Console.WriteLine($"Received response message from client: {message}");
     }
     else
     {

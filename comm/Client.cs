@@ -1,6 +1,6 @@
 using System.Net.WebSockets;
 
-namespace nexus;
+namespace comm;
 
 public record Client(string Name, ClientTypes Type, string Secret);
 

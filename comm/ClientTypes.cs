@@ -1,4 +1,4 @@
-namespace nexus;
+namespace comm;
 
 public enum ClientTypes
 {

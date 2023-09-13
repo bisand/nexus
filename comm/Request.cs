@@ -1,1 +1,2 @@
-public record Request(string Method, string Target, Uri Uri, KeyValuePair<string, string>[] Headers, string Body) : Message("Request");
+namespace comm;
+public record Request(RequestMethod Method, string? Target, Uri? Uri, IDictionary<string, string> Headers, string? Body) : Message(MessageType.Request, Headers, Body);

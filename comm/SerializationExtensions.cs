@@ -3,10 +3,15 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace nexus;
+namespace comm;
 public static class SerializationExtensions
 {
-    private static readonly JsonSerializerOptions SerializeOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = false };
+    private static readonly JsonSerializerOptions SerializeOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
     private static readonly JsonSerializerOptions DeSerializeOptions = new()
     {
         PropertyNameCaseInsensitive = true,

@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using comm;
 
 namespace nexus;
 
@@ -62,34 +63,44 @@ public static class Program
             var buffer = new byte[1024];
             while (true)
             {
-                var result = await webSocketContext.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                if (result.MessageType == WebSocketMessageType.Close)
+                try
+                {
+                    var result = await webSocketContext.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        Console.WriteLine("Client disconnected");
+                        break;
+                    }
+
+                    //TODO: Fix deserialization bug that throws exception when deserializing.
+                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    Request request = message.ToRequest();
+
+                    if (request.Method.Equals(RequestMethod.AUTH) && request.Body.Any())
+                    {
+                        WebSocketClient cli = request.Body.ToWebSocketClient(webSocketContext.WebSocket);
+                        var authResponse = cli.Secret;
+                        var expected = clients.Find(x => x.Name == cli.Name)?.Secret + challenge;
+                        if (authResponse == expected)
+                        {
+                            Console.WriteLine("Client authenticated");
+                            var authenticatedResponse = new Response(200, new Dictionary<string, string>(), null).ToJsonBuffer();
+                            await cli.WebSocket.SendAsync(new ArraySegment<byte>(authenticatedResponse), WebSocketMessageType.Text, true, CancellationToken.None);
+                            wsClients.Add(cli);
+                            tasks.Add(StartForwarding(cli, wsClients));
+                        }
+                        else
+                        {
+                            Console.WriteLine("Client authentication failed");
+                            await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client authentication failed", CancellationToken.None);
+                        }
+                    }
+
+                }
+                catch (Exception)
                 {
                     Console.WriteLine("Client disconnected");
-                    continue;
-                }
-
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                Request request = message.ToRequest();
-
-                if (request.Method.Equals("AUTH") && request.Body.Any())
-                {
-                    WebSocketClient cli = request.Body.ToWebSocketClient(webSocketContext.WebSocket);
-                    var authResponse = cli.Secret;
-                    var expected = clients.Find(x => x.Name == cli.Name)?.Secret + challenge;
-                    if (authResponse == expected)
-                    {
-                        Console.WriteLine("Client authenticated");
-                        var authenticatedResponse = new Response(200, new Dictionary<string, string>(), null).ToJsonBuffer();
-                        await cli.WebSocket.SendAsync(new ArraySegment<byte>(authenticatedResponse), WebSocketMessageType.Text, true, CancellationToken.None);
-                        wsClients.Add(cli);
-                        tasks.Add(StartForwarding(cli, wsClients));
-                    }
-                    else
-                    {
-                        Console.WriteLine("Client authentication failed");
-                        await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client authentication failed", CancellationToken.None);
-                    }
+                    break;
                 }
             }
         }
@@ -110,7 +121,7 @@ public static class Program
             }
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
             Message msg = message.ToMessage();
-            if (msg.MessageType.Equals("Request"))
+            if (msg.MessageType.Equals(MessageType.Request))
             {
                 Request request = message.ToRequest();
                 if (request.Method.Equals("LIST"))
@@ -141,7 +152,7 @@ public static class Program
                     }
                     var targetResult = Encoding.UTF8.GetString(buffer, 0, targetWebSocketResult.Count);
                     Message targetMessage = targetResult.ToMessage();
-                    if (targetMessage.MessageType.Equals("Response"))
+                    if (targetMessage.MessageType.Equals(MessageType.Response))
                     {
                         Response response = targetResult.ToResponse();
                         var forwardResponse = response.ToJsonBuffer();
