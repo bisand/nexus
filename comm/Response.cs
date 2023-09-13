@@ -1,1 +1,1 @@
-public record Response(int StatusCode, IDictionary<string, string> Headers, string? Body);
+public record Response(int StatusCode, IDictionary<string, string> Headers, string? Body) : Message("Response");

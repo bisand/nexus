@@ -34,7 +34,8 @@ public static class Program
         Console.WriteLine("Listening for WebSocket connections...");
 
         // Keep track of connected clients and their authentication status
-        var wsClients = new Dictionary<WebSocket, bool>();
+        var wsClients = new List<WebSocketClient>();
+        var tasks = new List<Task>();
 
         while (true)
         {
@@ -48,60 +49,46 @@ public static class Program
             }
 
             // Accept the WebSocket connection
-            var webSocket = await context.AcceptWebSocketAsync(null);
+            var webSocketContext = await context.AcceptWebSocketAsync(null);
             Console.WriteLine("New client connected");
 
             // Send an authentication challenge to the client
-            //TODO: Replace with response object
             var challenge = Guid.NewGuid().ToString("N");
-            wsClients[webSocket.WebSocket] = false;
-            var response = new Response(401, new Dictionary<string, string> { { "challenge", challenge } }, null);
-            string responseText = JsonSerializer.Serialize(response);
-            await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(responseText)), WebSocketMessageType.Text, true, CancellationToken.None);
+            var response = new Response(401, new Dictionary<string, string> { { "WWW-Authenticate", challenge } }, null);
+            string responseText = response.ToJson();
+            await webSocketContext.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(responseText)), WebSocketMessageType.Text, true, CancellationToken.None);
 
             // Listen for authentication responses from the client
             var buffer = new byte[1024];
             while (true)
             {
-                var result = await webSocket.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                var result = await webSocketContext.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     Console.WriteLine("Client disconnected");
-                    await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Client disconnected")), WebSocketMessageType.Text, true, CancellationToken.None);
-                    break;
+                    continue;
                 }
+
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var request = JsonSerializer.Deserialize<Request>(json, new JsonSerializerOptions
+                Request request = message.ToRequest();
+
+                if (request.Method.Equals("AUTH") && request.Body.Any())
                 {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-                }) ?? throw new Exception("Request error");
-                if (request.Method.Equals("auth") && request.Body.Any())
-                {
-                    //TODO: Fix this and use the request and response objects
-                    var response = message.Substring(5);
-                    var expected = secretKey + challenge;
-                    if (response == expected)
+                    WebSocketClient cli = request.Body.ToWebSocketClient(webSocketContext.WebSocket);
+                    var authResponse = cli.Secret;
+                    var expected = clients.Find(x => x.Name == cli.Name)?.Secret + challenge;
+                    if (authResponse == expected)
                     {
                         Console.WriteLine("Client authenticated");
-                        await webSocket.WebSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Client authenticated")), WebSocketMessageType.Text, true, CancellationToken.None);
-                        wsClients[webSocket.WebSocket] = true;
-
-                        //TODO: Accept all authenticated clients, not just the first two and route messages between them based on id
-                        if (wsClients.Count == 2 && wsClients.Values.All(authenticated => authenticated))
-                        {
-                            await StartForwarding(wsClients.Keys);
-                        }
-                        break;
+                        var authenticatedResponse = new Response(200, new Dictionary<string, string>(), null).ToJsonBuffer();
+                        await cli.WebSocket.SendAsync(new ArraySegment<byte>(authenticatedResponse), WebSocketMessageType.Text, true, CancellationToken.None);
+                        wsClients.Add(cli);
+                        tasks.Add(StartForwarding(cli, wsClients));
                     }
                     else
                     {
                         Console.WriteLine("Client authentication failed");
-                        await webSocket.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client authentication failed", CancellationToken.None);
-                        break;
+                        await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client authentication failed", CancellationToken.None);
                     }
                 }
             }
@@ -109,22 +96,60 @@ public static class Program
     }
 
     // Start forwarding messages between the two authenticated clients
-    static async Task StartForwarding(IEnumerable<WebSocket> clients)
+    static async Task StartForwarding(WebSocketClient sourceClient, List<WebSocketClient> otherClients)
     {
         Console.WriteLine("Starting message forwarding");
-        var clientList = clients.ToList();
         var buffer = new byte[1024];
         while (true)
         {
-            var result = await clientList[0].ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            var result = await sourceClient.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 Console.WriteLine("Client disconnected");
                 break;
             }
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            Console.WriteLine($"Received message from client1: {message}");
-            await clientList[1].SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
+            Message msg = message.ToMessage();
+            if (msg.MessageType.Equals("Request"))
+            {
+                Request request = message.ToRequest();
+                if (request.Method.Equals("LIST"))
+                {
+                    var clients = otherClients.Select(x => x.Client).ToList();
+                    var response = new Response(200, new Dictionary<string, string>(), clients.ToJson()).ToJsonBuffer();
+                    await sourceClient.WebSocket.SendAsync(new ArraySegment<byte>(response), WebSocketMessageType.Text, true, CancellationToken.None);
+                    continue;
+                }
+                if (request.Method.Equals("GET"))
+                {
+                    var targetClient = otherClients.Find(x => x.Client.Name == request.Target);
+                    if (targetClient == null)
+                    {
+                        var notFoundResponse = new Response(404, new Dictionary<string, string>(), null).ToJsonBuffer();
+                        await sourceClient.WebSocket.SendAsync(new ArraySegment<byte>(notFoundResponse), WebSocketMessageType.Text, true, CancellationToken.None);
+                        continue;
+                    }
+                    var forwardRequest = request.ToJsonBuffer();
+                    await targetClient.WebSocket.SendAsync(new ArraySegment<byte>(forwardRequest), WebSocketMessageType.Text, true, CancellationToken.None);
+                    var targetWebSocketResult = await targetClient.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (targetWebSocketResult.MessageType == WebSocketMessageType.Close)
+                    {
+                        Console.WriteLine("Target Client disconnected");
+                        var notFoundResponse = new Response(404, new Dictionary<string, string>(), null).ToJsonBuffer();
+                        await sourceClient.WebSocket.SendAsync(new ArraySegment<byte>(notFoundResponse), WebSocketMessageType.Text, true, CancellationToken.None);
+                        continue;
+                    }
+                    var targetResult = Encoding.UTF8.GetString(buffer, 0, targetWebSocketResult.Count);
+                    Message targetMessage = targetResult.ToMessage();
+                    if (targetMessage.MessageType.Equals("Response"))
+                    {
+                        Response response = targetResult.ToResponse();
+                        var forwardResponse = response.ToJsonBuffer();
+                        await sourceClient.WebSocket.SendAsync(new ArraySegment<byte>(forwardResponse), WebSocketMessageType.Text, true, CancellationToken.None);
+                    }
+                    continue;
+                }
+            }
         }
     }
 }
