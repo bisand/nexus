@@ -124,14 +124,14 @@ public static class Program
             if (msg.MessageType.Equals(MessageType.Request))
             {
                 Request request = message.ToRequest();
-                if (request.Method.Equals("LIST"))
+                if (request.Method.Equals(RequestMethod.LIST))
                 {
                     var clients = otherClients.Select(x => x.Client).ToList();
                     var response = new Response(200, new Dictionary<string, string>(), clients.ToJson()).ToJsonBuffer();
                     await sourceClient.WebSocket.SendAsync(new ArraySegment<byte>(response), WebSocketMessageType.Text, true, CancellationToken.None);
                     continue;
                 }
-                if (request.Method.Equals("GET"))
+                if (request.Method.Equals(RequestMethod.GET))
                 {
                     var targetClient = otherClients.Find(x => x.Client.Name == request.Target);
                     if (targetClient == null)

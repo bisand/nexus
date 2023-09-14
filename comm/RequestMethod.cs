@@ -10,5 +10,6 @@ public enum RequestMethod
     HEAD,
     OPTIONS,
     CONNECT,
-    TRACE
+    TRACE,
+    LIST
 }

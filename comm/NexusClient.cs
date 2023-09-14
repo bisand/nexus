@@ -62,18 +62,14 @@ public class NexusClient : IDisposable
         }
         Response response = conMsg.ToResponse();
         var challenge = "";
-        if (response.StatusCode == 401 && response.Headers.TryGetValue("WWW-Authenticate", out var authHeader))
+        if (response.StatusCode == 401 && response.Headers?.TryGetValue("WWW-Authenticate", out var authHeader) == true)
         {
             challenge = authHeader;
         }
 
         // Authenticate with the server
-        const string secretKey = "mysecretkey";
-        var expected = secretKey + challenge;
-        var authMessage = $"AUTH {expected}";
-        var request = new Request(RequestMethod.AUTH, null, _nexusUri, null, new Client(_clientName, ClientTypes.Client, _nexusSecret).ToJson());
-        var authBuffer = Encoding.UTF8.GetBytes(authMessage);
-        await _client.SendAsync(new ArraySegment<byte>(authBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
+        var request = new Request(RequestMethod.AUTH, default, _nexusUri, default, new Client(_clientName, ClientTypes.Client, $"{_nexusSecret}{challenge}").ToJson());
+        await _client.SendAsync(new ArraySegment<byte>(request.ToJsonBuffer()), WebSocketMessageType.Text, true, CancellationToken.None);
 
         // Wait for the server to authenticate us
         while (true)
@@ -85,10 +81,15 @@ public class NexusClient : IDisposable
                 _running = false;
                 break;
             }
-            var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            if (msg == "Client authenticated")
+            var resultString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            Message resultMessage = resultString.ToMessage();
+            if (resultMessage.MessageType == MessageType.Response)
             {
-                Console.WriteLine("Server authenticated us");
+                Response resultResponse = resultString.ToResponse();
+                if (resultResponse.StatusCode == 200)
+                {
+                    Console.WriteLine("Server authenticated us");
+                }
                 break;
             }
         }
@@ -132,7 +133,9 @@ public class NexusClient : IDisposable
     public async Task<Response> GetAsync(Request message)
     {
         await SendAsync(message);
-        return (await ReceiveAsync()).ToResponse();
+        string result = await ReceiveAsync();
+        Response response = result.ToResponse();
+        return response;
     }
 
     public async Task Stop()
