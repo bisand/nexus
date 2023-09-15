@@ -132,8 +132,9 @@ public class NexusClient : IDisposable
 
     public async Task<Response> GetAsync(Request message)
     {
+        var task = ReceiveAsync();
         await SendAsync(message);
-        string result = await ReceiveAsync();
+        var result = await task;
         Response response = result.ToResponse();
         return response;
     }
